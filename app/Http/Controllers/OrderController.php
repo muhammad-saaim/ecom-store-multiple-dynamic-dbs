@@ -7,6 +7,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Config;
+use App\Jobs\ReplicateToSlave;
 
 class OrderController extends Controller
 {
@@ -39,10 +40,15 @@ class OrderController extends Controller
 
         $order = Order::create([
             'user_id' => $validated['user_id'],
+            'total' => Product::whereIn('id', $validated['product_ids'])->sum('price'),
         ]);
 
         // Attach products to the order
         $order->products()->attach($validated['product_ids']);
+
+        // Replicate to slave immediately
+        $job = new ReplicateToSlave($order);
+        $job->handle(); // <<< run synchronously
 
         return response()->json($order->load('products'), Response::HTTP_CREATED);
     }

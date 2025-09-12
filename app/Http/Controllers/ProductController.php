@@ -6,6 +6,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Config;
+use App\Jobs\ReplicateToSlave;
 
 class ProductController extends Controller
 {
@@ -37,6 +38,10 @@ class ProductController extends Controller
 
         $product = Product::create($validated);
 
+        // Replicate to slave immediately
+        $job = new ReplicateToSlave($product);
+        $job->handle(); // run synchronously
+
         return response()->json($product, Response::HTTP_CREATED);
     }
 
@@ -56,4 +61,30 @@ class ProductController extends Controller
 
         return response()->json($product, Response::HTTP_OK);
     }
+    /**
+ * PUT /api/v1/products/{id}
+ * Update a product (write to master)
+ */
+public function update(Request $request, $id)
+{
+    // Use master DB for writes
+    Config::set('database.default', 'mysql');
+
+    $product = Product::find($id);
+
+    if (!$product) {
+        return response()->json(['message' => 'Product not found'], Response::HTTP_NOT_FOUND);
+    }
+
+    // Validate request
+    $validated = $request->validate([
+        'name' => 'sometimes|string|max:255',
+        'price' => 'sometimes|numeric',
+    ]);
+
+    $product->update($validated);
+
+    return response()->json($product, Response::HTTP_OK);
+}
+
 }

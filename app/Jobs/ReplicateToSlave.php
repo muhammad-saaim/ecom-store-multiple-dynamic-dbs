@@ -13,30 +13,34 @@ class ReplicateToSlave implements ShouldQueue
 {
     use InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $model;
+    protected Model $model;
 
-    /**
-     * @param Model $model - the model instance to replicate
-     */
     public function __construct(Model $model)
     {
         $this->model = $model;
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle()
     {
         // Switch to slave DB
         Config::set('database.default', 'slave');
 
-        // Update or create the record in slave
-        $this->model->replicate()->updateOrCreate(
-            ['id' => $this->model->id],
-            $this->model->getAttributes()
-        );
+        $attributes = $this->model->getAttributes();
 
-        // Optional: reset back to master (not needed in jobs)
+        // If record exists in slave, update it; otherwise, create it
+        $slaveModel = $this->model->replicate();
+        $slaveModel->setConnection('slave');
+
+        // Force the same ID for consistency
+        $slaveModel->id = $this->model->id;
+
+        // Save to slave
+        $slaveModel->save();
+
+        // Handle pivot tables if needed (example for orders → products)
+        if (method_exists($this->model, 'products')) {
+            $productIds = $this->model->products()->pluck('id')->toArray();
+            $slaveModel->products()->sync($productIds);
+        }
     }
 }
