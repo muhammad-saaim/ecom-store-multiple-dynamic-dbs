@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProfileController;
@@ -13,20 +12,32 @@ use App\Http\Controllers\AnalyticsController;
 | API Routes
 |--------------------------------------------------------------------------
 |
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| is assigned the "api" middleware group. Enjoy building your API!
+| All API routes are registered here. They are automatically assigned
+| the "api" middleware group.
 |
 */
 
-// Example test route
-Route::get('/ping', function () {
-    return response()->json(['message' => 'API is working 🚀']);
-});
+// ✅ Health-check route
+Route::get('/ping', fn() => response()->json(['message' => 'API is working 🚀']));
 
-// REST APIs
-Route::apiResource('users', UserController::class);
-Route::apiResource('profiles', ProfileController::class);
-Route::apiResource('orders', OrderController::class);
-Route::apiResource('products', ProductController::class);
-Route::apiResource('analytics', AnalyticsController::class);
+// ✅ Grouped API routes
+Route::prefix('v1')->group(function () {
+
+    // Users
+    Route::apiResource('users', UserController::class);
+
+    // Profiles nested under users (one-to-one)
+    Route::get('users/{user}/profile', [ProfileController::class, 'show']);
+    Route::post('users/{user}/profile', [ProfileController::class, 'store']);
+    Route::put('users/{user}/profile', [ProfileController::class, 'update']);
+    Route::delete('users/{user}/profile', [ProfileController::class, 'destroy']);
+
+    // Orders (linked to users: one-to-many)
+    Route::apiResource('orders', OrderController::class);
+
+    // Products (linked with orders: many-to-many)
+    Route::apiResource('products', ProductController::class);
+
+    // Analytics (separate DB: page views, etc.)
+    Route::apiResource('analytics', AnalyticsController::class);
+});

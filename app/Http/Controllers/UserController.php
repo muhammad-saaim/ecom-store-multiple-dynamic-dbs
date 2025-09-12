@@ -4,43 +4,60 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Config;
+use App\Jobs\ReplicateToSlave;
 
 class UserController extends Controller
 {
     /**
-     * GET /api/users
+     * GET /api/v1/users
+     * List all users (read from slave)
      */
     public function index()
     {
-        // Example: Force read from slave DB
         Config::set('database.default', 'slave');
 
-        return response()->json(User::all());
+        $users = User::with(['profile', 'orders'])->get();
+
+        return response()->json($users, Response::HTTP_OK);
     }
 
     /**
-     * POST /api/users
+     * POST /api/v1/users
+     * Create a new user (write to master)
      */
     public function store(Request $request)
     {
-        // Always write to master
         Config::set('database.default', 'mysql');
 
-        $user = User::create($request->only(['name', 'email']));
+        $validated = $request->validate([
+            'name'  => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+        ]);
 
-        return response()->json($user, 201);
+        $user = User::create($validated);
+
+        // Dispatch job using helper function
+        dispatch(new ReplicateToSlave($user));
+
+        return response()->json($user, Response::HTTP_CREATED);
     }
 
     /**
-     * GET /api/users/{id}
+     * GET /api/v1/users/{id}
+     * Show a single user (read from slave)
      */
     public function show($id)
     {
         Config::set('database.default', 'slave');
 
-        $user = User::with(['profile', 'orders'])->findOrFail($id);
+        $user = User::with(['profile', 'orders'])->find($id);
 
-        return response()->json($user);
+        if (! $user) {
+            return response()->json(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        return response()->json($user, Response::HTTP_OK);
     }
 }
