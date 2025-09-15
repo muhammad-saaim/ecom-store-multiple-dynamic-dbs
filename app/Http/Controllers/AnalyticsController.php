@@ -2,11 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\Order;
-use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
 
@@ -18,9 +14,7 @@ class AnalyticsController extends Controller
      */
     public function totalUsers()
     {
-        Config::set('database.default', 'slave'); // read from slave
-
-        $count = User::count();
+        $count = DB::connection('analytics')->table('monthly_users')->sum('count');
 
         return response()->json(['total_users' => $count], Response::HTTP_OK);
     }
@@ -31,10 +25,8 @@ class AnalyticsController extends Controller
      */
     public function newUsersMonthly()
     {
-        Config::set('database.default', 'slave');
-
-        $data = User::selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, COUNT(*) as count')
-            ->groupBy('year', 'month')
+        $data = DB::connection('analytics')
+            ->table('monthly_users')
             ->orderBy('year')
             ->orderBy('month')
             ->get();
@@ -48,9 +40,7 @@ class AnalyticsController extends Controller
      */
     public function totalOrders()
     {
-        Config::set('database.default', 'slave');
-
-        $count = Order::count();
+        $count = DB::connection('analytics')->table('revenue_per_month')->sum('orders_count');
 
         return response()->json(['total_orders' => $count], Response::HTTP_OK);
     }
@@ -61,10 +51,8 @@ class AnalyticsController extends Controller
      */
     public function revenuePerMonth()
     {
-        Config::set('database.default', 'slave');
-
-        $data = Order::selectRaw('YEAR(created_at) as year, MONTH(created_at) as month, SUM(total) as revenue')
-            ->groupBy('year', 'month')
+        $data = DB::connection('analytics')
+            ->table('revenue_per_month')
             ->orderBy('year')
             ->orderBy('month')
             ->get();
@@ -78,13 +66,9 @@ class AnalyticsController extends Controller
      */
     public function topProducts()
     {
-        Config::set('database.default', 'slave');
-
-        $data = DB::table('order_product')
-            ->join('products', 'order_product.product_id', '=', 'products.id')
-            ->select('products.id', 'products.name', DB::raw('COUNT(order_product.product_id) as total_sales'))
-            ->groupBy('products.id', 'products.name')
-            ->orderByDesc('total_sales')
+        $data = DB::connection('analytics')
+            ->table('top_products')
+            ->orderByDesc('sold')
             ->limit(10)
             ->get();
 
@@ -92,14 +76,13 @@ class AnalyticsController extends Controller
     }
 
     /**
-     * OPTIONAL: GET /api/v1/analytics/page-views
-     * Read page views from analytics DB
+     * GET /api/v1/analytics/page-views
+     * Page views from analytics DB
      */
     public function pageViews()
     {
         $data = DB::connection('analytics')
             ->table('page_views')
-            ->select('page', 'count')
             ->orderByDesc('count')
             ->get();
 
