@@ -38,6 +38,20 @@ Route::prefix('v1')->group(function () {
     // Products (linked with orders: many-to-many)
     Route::apiResource('products', ProductController::class);
 
-    // Analytics (separate DB: page views, etc.)
-    Route::apiResource('analytics', AnalyticsController::class);
+    // Analytics (custom read-only endpoints)
+    Route::prefix('analytics')->group(function () {
+        // Users
+        Route::get('/users/count', [AnalyticsController::class, 'totalUsers']);
+        Route::get('/users/monthly', [AnalyticsController::class, 'newUsersMonthly']);
+
+        // Orders
+        Route::get('/orders/count', [AnalyticsController::class, 'totalOrders']);
+        Route::get('/orders/revenue', [AnalyticsController::class, 'revenuePerMonth']);
+
+        // Products
+        Route::get('/products/top', [AnalyticsController::class, 'topProducts']);
+
+        // Optional: page views (analytics DB)
+        Route::get('/page-views', [AnalyticsController::class, 'pageViews']);
+    });
 });
