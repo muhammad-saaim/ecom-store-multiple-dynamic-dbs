@@ -7,6 +7,12 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AnalyticsController;
 
+use App\Jobs\SyncMonthlyUsers;
+use App\Jobs\SyncRevenuePerMonth;
+use App\Jobs\SyncTopProducts;
+use App\Jobs\SyncPageViews;
+use Illuminate\Support\Facades\Log;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -54,4 +60,28 @@ Route::prefix('v1')->group(function () {
         // Optional: page views (analytics DB)
         Route::get('/page-views', [AnalyticsController::class, 'pageViews']);
     });
+
+    // ✅ Temporary route to manually dispatch analytics jobs (Step 3a)
+    Route::get('/analytics/run-jobs', function () {
+
+        Log::info("Dispatching analytics jobs...");
+
+        SyncMonthlyUsers::dispatch();
+        Log::info("SyncMonthlyUsers dispatched");
+
+        SyncRevenuePerMonth::dispatch();
+        Log::info("SyncRevenuePerMonth dispatched");
+
+        SyncTopProducts::dispatch();
+        Log::info("SyncTopProducts dispatched");
+
+        // Example page view job (can change 'home' and increment)
+        SyncPageViews::dispatch('home', 1);
+        Log::info("SyncPageViews dispatched");
+
+        return response()->json([
+            'message' => 'All analytics jobs dispatched. Check your queue worker and logs.'
+        ]);
+    });
+
 });
