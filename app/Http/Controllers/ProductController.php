@@ -32,17 +32,22 @@ class ProductController extends Controller
         Config::set('database.default', 'mysql');
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'  => 'required|string|max:255',
             'price' => 'required|numeric',
         ]);
 
         $product = Product::create($validated);
 
-        // Replicate to slave immediately
-        $job = new ReplicateToSlave($product);
-        $job->handle(); // run synchronously
+        // Replicate asynchronously to slave (queue-friendly)
+        ReplicateToSlave::dispatch($product);
 
-        return response()->json($product, Response::HTTP_CREATED);
+        // Or run synchronously:
+        // (new ReplicateToSlave($product))->handle();
+
+        return response()->json([
+            'message' => 'Product created successfully',
+            'product' => $product,
+        ], Response::HTTP_CREATED);
     }
 
     /**
@@ -61,30 +66,37 @@ class ProductController extends Controller
 
         return response()->json($product, Response::HTTP_OK);
     }
+
     /**
- * PUT /api/v1/products/{id}
- * Update a product (write to master)
- */
-public function update(Request $request, $id)
-{
-    // Use master DB for writes
-    Config::set('database.default', 'mysql');
+     * PUT /api/v1/products/{id}
+     * Update a product (write to master)
+     */
+    public function update(Request $request, $id)
+    {
+        Config::set('database.default', 'mysql');
 
-    $product = Product::find($id);
+        $product = Product::find($id);
 
-    if (!$product) {
-        return response()->json(['message' => 'Product not found'], Response::HTTP_NOT_FOUND);
+        if (! $product) {
+            return response()->json(['message' => 'Product not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $validated = $request->validate([
+            'name'  => 'sometimes|string|max:255',
+            'price' => 'sometimes|numeric',
+        ]);
+
+        $product->update($validated);
+
+        // Replicate asynchronously to slave (queue-friendly)
+        ReplicateToSlave::dispatch($product);
+
+        // Or run synchronously:
+        // (new ReplicateToSlave($product))->handle();
+
+        return response()->json([
+            'message' => 'Product updated successfully',
+            'product' => $product,
+        ], Response::HTTP_OK);
     }
-
-    // Validate request
-    $validated = $request->validate([
-        'name' => 'sometimes|string|max:255',
-        'price' => 'sometimes|numeric',
-    ]);
-
-    $product->update($validated);
-
-    return response()->json($product, Response::HTTP_OK);
-}
-
 }
