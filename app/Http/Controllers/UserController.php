@@ -48,16 +48,27 @@ class UserController extends Controller
      * GET /api/v1/users/{id}
      * Show a single user (read from slave)
      */
-    public function show($id)
-    {
-        Config::set('database.default', 'slave');
+        public function show($id)
+        {
+            Config::set('database.default', 'slave');
 
-        $user = User::with(['profile', 'orders'])->find($id);
+            $user = User::with(['profile', 'orders'])->find($id);
 
-        if (! $user) {
-            return response()->json(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
+            if (! $user) {
+                return response()->json(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
+            }
+
+            return response()->json($user, Response::HTTP_OK);
         }
+        public function update(Request $request, User $user)
+        {
+            $validated = $request->validate([
+                'name' => 'sometimes|string|max:255',
+                'email' => 'sometimes|email|unique:users,email,' . $user->id,
+            ]);
 
-        return response()->json($user, Response::HTTP_OK);
-    }
+            $user->update($validated);
+
+            return response()->json($user, 200);
+        }
 }
